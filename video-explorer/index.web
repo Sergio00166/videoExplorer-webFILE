@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/?static=ico/video.ico">
     <title>Video Navigator</title>
 <style>
 
@@ -238,7 +239,7 @@ function collectAndRender(directory, prefix, container) {
         videos.forEach(video => {
           const card = document.createElement('div');
           card.className = 'card';
-          card.onclick = () => location.href = video.path;
+          card.onclick = () => window.open(video.path, '_blank');
 
           const thumbnail = document.createElement('div');
           thumbnail.className = 'thumb loading';
