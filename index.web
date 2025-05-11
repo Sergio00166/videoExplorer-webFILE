@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <link rel="icon" type="image/x-icon" href="/?static=ico/video.ico">
+  <title>Video Navigator</title>
+  <style>
+
+:root {
+    --gap: 1rem;
+    --card-radius: 16px; /* Increased for a softer look */
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --bg: #121212;
+    --fg: #e0e0e0;
+    --card-bg: #1e1e1e;
+    --accent: #bb86fc;
+    --bar-bg: #1f1f1f;
+    --bar-fg: #ffffff;
+    --placeholder: #333;
+}
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: "Segoe UI", sans-serif;
+    padding: var(--gap);
+}
+.address-bar {
+    background: var(--bar-bg);
+    color: var(--bar-fg);
+    padding: 1rem;
+    border-radius: var(--card-radius);
+    text-align: center;
+    font-family: monospace;
+    font-size: 1.2rem;
+    margin-bottom: var(--gap);
+    box-shadow: var(--shadow);
+    /* Ensure text wraps */
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+}
+.folder {
+    background: var(--bar-bg);
+    border-radius: var(--card-radius);
+    margin-bottom: var(--gap);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+/* Folder header and its arrow */
+.folder__header {
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s;
+    border-top-left-radius: var(--card-radius);
+    border-top-right-radius: var(--card-radius);
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+}
+.folder__header:hover {
+    background: rgba(187, 134, 252, 0.15);
+}
+.folder__header::after {
+    content: "▾";
+    transition: transform 0.2s;
+}
+.folder.is-open .folder__header::after {
+    transform: rotate(180deg);
+}
+.folder__content {
+    display: none;
+    padding: calc(var(--gap) * 1.25);
+    background: var(--card-bg);
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+}
+.folder.is-open .folder__content {
+    display: block;
+}
+.folder__content > .folder:not(:first-child) {
+    margin-top: var(--gap);
+}
+.grid {
+    display: grid;
+    gap: var(--gap);
+    grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 1024px) {
+    .grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (max-width: 600px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+.card {
+    background: var(--card-bg);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+}
+.thumb {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: var(--placeholder) center/cover no-repeat;
+    animation: pulse 1.5s infinite;
+    position: relative;
+    border-top-left-radius: var(--card-radius);
+    border-top-right-radius: var(--card-radius);
+}
+.thumb.loading::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+    background-size: 200% 100%;
+    animation: loadingAnim 1.5s infinite;
+}
+@keyframes pulse {
+    0%,
+    100% {
+        background-color: #333;
+    }
+    50% {
+        background-color: #444;
+    }
+}
+@keyframes loadingAnim {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+.info {
+    padding: 0.75rem;
+    text-align: center;
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+}
+.title {
+    font-weight: 700;
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.back-btn {
+    background-color: var(--accent);
+    color: var(--bg);
+    padding: 0.75rem 1rem;
+    border-radius: var(--card-radius);
+    text-align: center;
+    cursor: pointer;
+    margin-bottom: 1rem;
+    transition: background-color 0.3s;
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+}
+.back-btn:hover {
+    background-color: #9c66f0;
+}
+/* Enhanced folder description styling */
+.folder__description {
+    margin: 0.5rem 1rem;
+    padding: 1rem;
+    font-size: 1rem;
+    color: var(--fg);
+    background: rgba(187, 134, 252, 0.1);
+    border: 1px solid var(--accent);
+    border-radius: var(--card-radius);
+    white-space: pre-wrap;
+    cursor: pointer;
+    word-break: break-all;
+    overflow-wrap: break-word;
+}
+.folder__desc-inner {
+    display: flex;
+    gap: var(--gap);
+    white-space: normal;
+    word-break: break-all;
+    overflow-wrap: break-word;
+    align-items: center;
+}
+/* Poster container with layered blurred effect */
+.folder__poster-container {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    flex-shrink: 0;
+    border-radius: var(--card-radius);
+    overflow: hidden;
+}
+.folder__poster-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    filter: blur(8px);
+    transform: scale(1.1);
+    z-index: 1;
+}
+.folder__poster-image {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+/* Scrollable text area with custom scrollbars */
+.folder__description .desc-text {
+    flex: 1;
+    max-height: 150px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) rgba(187, 134, 252, 0.1);
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+.folder__description .desc-text::-webkit-scrollbar-thumb {
+    background-color: var(--accent);
+    border-radius: 8px;
+}
+.folder__description .desc-text::-webkit-scrollbar-thumb:hover {
+    background-color: #9c66f0;
+}
+@media (max-width: 600px) {
+    .folder__desc-inner {
+        flex-direction: column;
+    }
+    .folder__poster-container {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        max-height: 125px;
+        aspect-ratio: 16/9;
+    }
+}
+@media (max-width: 400px) {
+    body {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+    }
+    .folder__content,
+    .info,
+    .folder__description {
+        padding: 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+@media (max-width: 250px) {
+    .folder__description {
+        display: none;
+    }
+}
+@media (max-width: 120px) {
+    body {
+        display: none;
+    }
+}
+
+  </style>
+</head>
+<body>
+  <div class="address-bar" id="folder-name"></div>
+  <div class="back-btn" onclick="goBack()">Exit this menu</div>
+  <br> <div id="container"></div>
+  </body>
+<script>
+
+// Candidate image extensions to check
+const imageExtensions = ['.webp', '.png', '.jpeg', '.jpg'];
+
+// Utility function that tries a list of extensions for a given URL base.
+function tryExtensions(urlBase, extensions) {
+  return new Promise((resolve, reject) => {
+    let i = 0;
+    function tryNext() {
+      if (i >= extensions.length) {
+        reject("No valid image found for " + urlBase);
+        return;
+      }
+      const url = urlBase + extensions[i];
+      fetch(url, { method: 'HEAD' })
+        .then(response => {
+          if (response.ok) {
+            resolve(url);
+          } else {
+            i++;
+            tryNext();
+          }
+        })
+        .catch(() => {
+          i++;
+          tryNext();
+        });
+    }
+    tryNext();
+  });
+}
+
+// Extract base URL and path from window.location
+const { origin, pathname } = window.location;
+const segs = pathname.split('/');
+if (!segs.pop().includes('.')) segs.push('');
+const basePath = segs.join('/');
+document.getElementById('folder-name').textContent = decodeURIComponent(basePath) || '/';
+
+// Helper function that toggles an element's display between 'none' and 'block'
+function toggleContent(content) {
+  content.style.display = content.style.display === 'none' ? 'block' : 'none';
+}
+
+// Navigate to parent folder
+function goBack() {
+  const parent = basePath.split('/').slice(0, -1).join('/');
+  window.location.href = origin + (parent || '/');
+}
+
+// Intersection Observer for lazy loading thumbnails
+const io = new IntersectionObserver((entries, observer) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.backgroundImage = `url('${entry.target.dataset.src}')`;
+      entry.target.classList.remove('loading');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { rootMargin: '200px' });
+
+/**
+ * Renders a directory and its subdirectories.
+ * Clicking anywhere inside the folder (except on video cards) toggles its content.
+ */
+function collectAndRender(directory, prefix, container) {
+  const relativePath = prefix + directory.name + '/';
+  const folder = document.createElement('div');
+  folder.className = 'folder is-loading';
+
+  // Create header for display (no click handler here because we attach one to the entire folder)
+  const header = document.createElement('div');
+  header.className = 'folder__header';
+  header.textContent = directory.name;
+
+  // Create content container (initially hidden)
+  const content = document.createElement('div');
+  content.className = 'folder__content';
+  content.style.display = 'none';
+
+  folder.append(header, content);
+  container.appendChild(folder);
+
+  // Attach a click listener to the entire folder.
+  folder.addEventListener('click', function(e) {
+    // If click originates inside video card, do not toggle.
+    if (e.target.closest('.card')) return;
+    // Optionally, you can check here not to affect scrollbar clicks if necessary.
+    toggleContent(content);
+    // Stop propagation so parent folders are not toggled.
+    e.stopPropagation();
+  });
+
+  // Fetch folder description if available
+  fetch(origin + directory.path + '/description.txt')
+    .then(response => {
+      if (response.ok) return response.text();
+      throw new Error('No description');
+    })
+    .then(text => {
+      const descContainer = document.createElement('div');
+      descContainer.className = 'folder__description';
+      
+      const innerContainer = document.createElement('div');
+      innerContainer.className = 'folder__desc-inner';
+
+      // Create description text element (no stopPropagation here so that clicks bubble up)
+      const descTextEl = document.createElement('div');
+      descTextEl.className = 'desc-text';
+      descTextEl.textContent = text;
+
+      innerContainer.appendChild(descTextEl);
+
+      // Attempt to fetch poster image using candidate extensions
+      const posterBase = origin + directory.path + '/poster';
+      tryExtensions(posterBase, imageExtensions)
+        .then(url => {
+          const posterContainer = document.createElement('div');
+          posterContainer.className = 'folder__poster-container';
+
+          const bgDiv = document.createElement('div');
+          bgDiv.className = 'folder__poster-bg';
+          bgDiv.style.backgroundImage = `url(${url})`;
+
+          const img = document.createElement('img');
+          img.className = 'folder__poster-image';
+          img.src = url;
+          img.alt = 'Poster';
+
+          posterContainer.appendChild(bgDiv);
+          posterContainer.appendChild(img);
+
+          innerContainer.insertBefore(posterContainer, descTextEl);
+        })
+        .catch(() => {})
+        .finally(() => {
+          descContainer.appendChild(innerContainer);
+          folder.insertBefore(descContainer, content);
+        });
+    })
+    .catch(() => {});
+
+  // Fetch folder contents (both videos and subdirectories)
+  return fetch(origin + directory.path + '/', { headers: { Accept: 'application/json' } })
+    .then(response => response.json())
+    .then(items => {
+      // Process videos
+      const videos = items.filter(item => item.type === 'video');
+      if (videos.length) {
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        videos.forEach(video => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.onclick = function(e) {
+            e.stopPropagation();
+            window.open(video.path, '_blank');
+          };
+
+          const thumbnail = document.createElement('div');
+          thumbnail.className = 'thumb loading';
+
+          // Generate thumbnail base path by replacing the final segment of the video path.
+          const thumbBase = video.path.replace(/\/([^\/]+)$/, '/.thumbnails/$1');
+          tryExtensions(thumbBase, imageExtensions)
+            .then(url => {
+              thumbnail.dataset.src = url;
+              io.observe(thumbnail);
+            })
+            .catch(() => {});
+
+          const info = document.createElement('div');
+          info.className = 'info';
+          const title = document.createElement('div');
+          title.className = 'title';
+          title.textContent = video.name.replace(/\.[^/.]+$/, '');
+          info.appendChild(title);
+
+          card.append(thumbnail, info);
+          grid.appendChild(card);
+        });
+        content.appendChild(grid);
+      }
+
+      const subdirectories = items
+        .filter(item => item.type === 'directory')
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      const subdirectoryPromises = subdirectories.map(subdir =>
+        collectAndRender(subdir, relativePath, content)
+      );
+
+      return Promise.all(subdirectoryPromises).then(() => {
+        if (content.childElementCount === 0) {
+          folder.remove();
+        } else {
+          folder.classList.remove('is-loading');
+        }
+      });
+    })
+    .catch(() => {
+      folder.remove();
+    });
+}
+
+async function renderAll() {
+  const container = document.getElementById('container');
+  const rootResponse = await fetch(origin + basePath + '/', { headers: { Accept: 'application/json' } });
+  const rootItems = await rootResponse.json();
+  const rootDirectories = rootItems
+    .filter(item => item.type === 'directory')
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const rootVideos = rootItems.filter(item => item.type === 'video');
+  if (rootVideos.length) {
+    collectAndRender({ name: '.', path: basePath }, '', container);
+  }
+  rootDirectories.forEach(root => collectAndRender(root, '', container));
+}
+
+renderAll();
+
+</script>
+</html>
