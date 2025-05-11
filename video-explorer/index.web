@@ -157,7 +157,6 @@ body {
   background-color: #9c66f0;
 }
 
-
 </style>
 </head>
 
@@ -212,7 +211,7 @@ function collectAndRender(directory, prefix, container) {
 
   const header = document.createElement('div');
   header.className = 'folder__header';
-  header.textContent = relativePath;
+  header.textContent = directory.name;
 
   // Hides folder contents initially
   const content = document.createElement('div');
