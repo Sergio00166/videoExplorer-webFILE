@@ -296,175 +296,183 @@ body {
   </body>
 <script>
 
-// Candidate image extensions to check
-const imageExtensions = ['.webp', '.png', '.jpeg', '.jpg'];
-
-// Utility function that tries a list of extensions for a given URL base.
-function tryExtensions(urlBase, extensions) {
-  return new Promise((resolve, reject) => {
-    let i = 0;
-    function tryNext() {
-      if (i >= extensions.length) {
-        reject("No valid image found for " + urlBase);
-        return;
-      }
-      const url = urlBase + extensions[i];
-      fetch(url, { method: 'HEAD' })
-        .then(response => {
-          if (response.ok) {
-            resolve(url);
-          } else {
-            i++;
-            tryNext();
-          }
-        })
-        .catch(() => {
-          i++;
-          tryNext();
-        });
-    }
-    tryNext();
-  });
-}
-
-// Extract base URL and path from window.location
+// ---------------------------------------------------------------------------
+// Base Setup – determine the current folder from window.location
 const { origin, pathname } = window.location;
 const segs = pathname.split('/');
 if (!segs.pop().includes('.')) segs.push('');
 const basePath = segs.join('/');
-document.getElementById('folder-name').textContent = decodeURIComponent(basePath) || '/';
+document.getElementById('folder-name').textContent =
+  decodeURIComponent(basePath) || '/';
 
-// Helper function that toggles an element's display between 'none' and 'block'
+// Global cache for thumbnails folder contents to avoid duplicate fetches
+const thumbnailsCache = {};
+
+// Utility: Toggle an element's display between "none" and "block"
 function toggleContent(content) {
   content.style.display = content.style.display === 'none' ? 'block' : 'none';
 }
 
-// Navigate to parent folder
+// Utility: Navigate to the parent folder
 function goBack() {
   const parent = basePath.split('/').slice(0, -1).join('/');
   window.location.href = origin + (parent || '/');
 }
 
-// Intersection Observer for lazy loading thumbnails
+// Helper: When a thumbnail element comes into view, update its background image.
+function updateThumbnail(thumbElem, thumbnailsArray) {
+  const videoName = thumbElem.dataset.video;
+  const matchingThumbnail = thumbnailsArray.find(item =>
+    item.name.startsWith(videoName)
+  );
+  if (matchingThumbnail) {
+    thumbElem.style.backgroundImage =
+      `url('${origin + matchingThumbnail.path}')`;
+    thumbElem.dataset.src = origin + matchingThumbnail.path;
+  } else {
+    thumbElem.style.backgroundImage = 'none';
+  }
+  thumbElem.classList.remove('loading');
+}
+
+// ---------------------------------------------------------------------------
+// Intersection Observer: Lazy-load images or background images only when visible.
 const io = new IntersectionObserver((entries, observer) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
-      entry.target.style.backgroundImage = `url('${entry.target.dataset.src}')`;
-      entry.target.classList.remove('loading');
-      observer.unobserve(entry.target);
+      if (entry.target.classList.contains('thumb')) {
+        const thumbElem = entry.target;
+        const thumbnailsFolder = thumbElem.dataset.folder;
+        if (thumbnailsCache[thumbnailsFolder]) {
+          updateThumbnail(thumbElem, thumbnailsCache[thumbnailsFolder]);
+          observer.unobserve(thumbElem);
+        } else {
+          fetch(origin + thumbnailsFolder, {
+            headers: { Accept: 'application/json' }
+          })
+            .then(response => response.json())
+            .then(thumbnailsArray => {
+              thumbnailsCache[thumbnailsFolder] = thumbnailsArray;
+              updateThumbnail(thumbElem, thumbnailsArray);
+              observer.unobserve(thumbElem);
+            })
+            .catch(() => {
+              observer.unobserve(thumbElem);
+            });
+        }
+      } else if (entry.target.tagName === 'IMG') {
+        entry.target.src = entry.target.dataset.src;
+        entry.target.classList.remove('loading');
+        observer.unobserve(entry.target);
+      } else {
+        entry.target.style.backgroundImage =
+          `url('${entry.target.dataset.src}')`;
+        entry.target.classList.remove('loading');
+        observer.unobserve(entry.target);
+      }
     }
   });
 }, { rootMargin: '200px' });
 
-/**
- * Renders a directory and its subdirectories.
- * Clicking anywhere inside the folder (except on video cards) toggles its content.
- */
+// ---------------------------------------------------------------------------
+// Recursive function to render a folder and its contents using our Folder API.
 function collectAndRender(directory, prefix, container) {
   const relativePath = prefix + directory.name + '/';
+
   const folder = document.createElement('div');
   folder.className = 'folder is-loading';
 
-  // Create header for display (no click handler here because we attach one to the entire folder)
   const header = document.createElement('div');
   header.className = 'folder__header';
   header.textContent = directory.name;
+  folder.appendChild(header);
 
-  // Create content container (initially hidden)
   const content = document.createElement('div');
   content.className = 'folder__content';
   content.style.display = 'none';
+  folder.appendChild(content);
 
-  folder.append(header, content);
   container.appendChild(folder);
 
-  // Attach a click listener to the entire folder.
-  folder.addEventListener('click', function(e) {
-    // If click originates inside video card, do not toggle.
+  folder.addEventListener('click', function (e) {
     if (e.target.closest('.card')) return;
-    // Optionally, you can check here not to affect scrollbar clicks if necessary.
     toggleContent(content);
-    // Stop propagation so parent folders are not toggled.
     e.stopPropagation();
   });
 
-  // Fetch folder description if available
-  fetch(origin + directory.path + '/description.txt')
-    .then(response => {
-      if (response.ok) return response.text();
-      throw new Error('No description');
-    })
-    .then(text => {
-      const descContainer = document.createElement('div');
-      descContainer.className = 'folder__description';
-      
-      const innerContainer = document.createElement('div');
-      innerContainer.className = 'folder__desc-inner';
+  fetch(origin + directory.path + '/', { headers: { Accept: 'application/json' } })
+    .then(response => response.json())
+    .then(items => {
+      const subdirectories = items.filter(item => item.type === "directory");
+      const videoItems = items.filter(item => item.type === "video");
+      const photoItems = items.filter(item => item.type === "photo");
+      const descriptionFile = items.find(
+        item => item.type === "text" && item.name === "description.txt"
+      );
 
-      // Create description text element (no stopPropagation here so that clicks bubble up)
-      const descTextEl = document.createElement('div');
-      descTextEl.className = 'desc-text';
-      descTextEl.textContent = text;
+      // Crear bloque de descripción solo si hay foto o descripción
+      if (photoItems.length > 0 || descriptionFile) {
+        const descriptionWrapper = document.createElement('div');
+        descriptionWrapper.className = 'folder__description';
 
-      innerContainer.appendChild(descTextEl);
+        const descInner = document.createElement('div');
+        descInner.className = 'folder__desc-inner';
 
-      // Attempt to fetch poster image using candidate extensions
-      const posterBase = origin + directory.path + '/poster';
-      tryExtensions(posterBase, imageExtensions)
-        .then(url => {
+        if (photoItems.length > 0) {
           const posterContainer = document.createElement('div');
           posterContainer.className = 'folder__poster-container';
 
-          const bgDiv = document.createElement('div');
-          bgDiv.className = 'folder__poster-bg';
-          bgDiv.style.backgroundImage = `url(${url})`;
+          const posterBg = document.createElement('div');
+          posterBg.className = 'folder__poster-bg loading';
+          posterBg.style.backgroundImage = "url('')";
+          posterBg.dataset.src = origin + photoItems[0].path;
+          io.observe(posterBg);
+          posterContainer.appendChild(posterBg);
 
-          const img = document.createElement('img');
-          img.className = 'folder__poster-image';
-          img.src = url;
-          img.alt = 'Poster';
+          const posterImg = document.createElement('img');
+          posterImg.className = 'folder__poster-image loading';
+          posterImg.src = "";
+          posterImg.alt = "Poster";
+          posterImg.dataset.src = origin + photoItems[0].path;
+          io.observe(posterImg);
+          posterContainer.appendChild(posterImg);
 
-          posterContainer.appendChild(bgDiv);
-          posterContainer.appendChild(img);
+          descInner.appendChild(posterContainer);
+        }
 
-          innerContainer.insertBefore(posterContainer, descTextEl);
-        })
-        .catch(() => {})
-        .finally(() => {
-          descContainer.appendChild(innerContainer);
-          folder.insertBefore(descContainer, content);
-        });
-    })
-    .catch(() => {});
+        if (descriptionFile) {
+          const descText = document.createElement('div');
+          descText.className = 'desc-text';
+          fetch(origin + descriptionFile.path)
+            .then(resp => resp.text())
+            .then(textContent => {
+              descText.textContent = textContent;
+            })
+            .catch(() => {});
+          descInner.appendChild(descText);
+        }
 
-  // Fetch folder contents (both videos and subdirectories)
-  return fetch(origin + directory.path + '/', { headers: { Accept: 'application/json' } })
-    .then(response => response.json())
-    .then(items => {
-      // Process videos
-      const videos = items.filter(item => item.type === 'video');
-      if (videos.length) {
+        descriptionWrapper.appendChild(descInner);
+        folder.insertBefore(descriptionWrapper, content);
+      }
+
+      if (videoItems.length > 0) {
         const grid = document.createElement('div');
         grid.className = 'grid';
-        videos.forEach(video => {
+        videoItems.forEach(video => {
           const card = document.createElement('div');
           card.className = 'card';
-          card.onclick = function(e) {
+          card.onclick = function (e) {
             e.stopPropagation();
-            window.open(video.path, '_blank');
+            window.open(origin + video.path, '_blank');
           };
 
           const thumbnail = document.createElement('div');
           thumbnail.className = 'thumb loading';
-
-          // Generate thumbnail base path by replacing the final segment of the video path.
-          const thumbBase = video.path.replace(/\/([^\/]+)$/, '/.thumbnails/$1');
-          tryExtensions(thumbBase, imageExtensions)
-            .then(url => {
-              thumbnail.dataset.src = url;
-              io.observe(thumbnail);
-            })
-            .catch(() => {});
+          thumbnail.dataset.video = video.name;
+          const videoFolder = video.path.substring(0, video.path.lastIndexOf('/'));
+          thumbnail.dataset.folder = videoFolder + '/.thumbnails/';
+          io.observe(thumbnail);
 
           const info = document.createElement('div');
           info.className = 'info';
@@ -479,39 +487,40 @@ function collectAndRender(directory, prefix, container) {
         content.appendChild(grid);
       }
 
-      const subdirectories = items
-        .filter(item => item.type === 'directory')
-        .sort((a, b) => a.name.localeCompare(b.name));
+      if (subdirectories.length > 0) {
+        subdirectories.sort((a, b) => a.name.localeCompare(b.name));
+        subdirectories.forEach(subdir =>
+          collectAndRender(subdir, relativePath, content)
+        );
+      }
 
-      const subdirectoryPromises = subdirectories.map(subdir =>
-        collectAndRender(subdir, relativePath, content)
-      );
-
-      return Promise.all(subdirectoryPromises).then(() => {
-        if (content.childElementCount === 0) {
-          folder.remove();
-        } else {
-          folder.classList.remove('is-loading');
-        }
-      });
+      if (content.childElementCount === 0) {
+        folder.remove();
+      } else {
+        folder.classList.remove('is-loading');
+      }
     })
     .catch(() => {
       folder.remove();
     });
 }
 
+// ---------------------------------------------------------------------------
+// Render the contents of the root folder.
 async function renderAll() {
   const container = document.getElementById('container');
-  const rootResponse = await fetch(origin + basePath + '/', { headers: { Accept: 'application/json' } });
+  const rootResponse = await fetch(origin + basePath + '/', {
+    headers: { Accept: 'application/json' }
+  });
   const rootItems = await rootResponse.json();
-  const rootDirectories = rootItems
-    .filter(item => item.type === 'directory')
-    .sort((a, b) => a.name.localeCompare(b.name));
 
-  const rootVideos = rootItems.filter(item => item.type === 'video');
+  const rootVideos = rootItems.filter(item => item.type === "video");
   if (rootVideos.length) {
     collectAndRender({ name: '.', path: basePath }, '', container);
   }
+
+  const rootDirectories = rootItems.filter(item => item.type === "directory")
+    .sort((a, b) => a.name.localeCompare(b.name));
   rootDirectories.forEach(root => collectAndRender(root, '', container));
 }
 
