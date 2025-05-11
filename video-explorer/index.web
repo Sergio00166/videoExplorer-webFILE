@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Video Navigator</title>
+<style>
+
+:root {
+  --gap: 1rem;
+  --card-radius: 12px;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --bg: #121212;
+  --fg: #e0e0e0;
+  --card-bg: #1e1e1e;
+  --accent: #bb86fc;
+  --bar-bg: #1f1f1f;
+  --bar-fg: #ffffff;
+  --placeholder: #333;
+}
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Segoe UI", sans-serif;
+  padding: var(--gap);
+}
+.address-bar {
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  padding: 1rem;
+  border-radius: var(--card-radius);
+  text-align: center;
+  font-family: monospace;
+  font-size: 1.2rem;
+  margin-bottom: var(--gap);
+  box-shadow: var(--shadow);
+}
+.folder {
+  background: var(--bar-bg);
+  border-radius: var(--card-radius);
+  margin-bottom: var(--gap);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.folder__header {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.2s;
+}
+.folder__header:hover {
+  background: rgb(187 134 252 / 0.1);
+}
+.folder__header::after {
+  content: "▾";
+  transition: transform 0.2s;
+}
+.folder.is-open .folder__header::after {
+  transform: rotate(180deg);
+}
+.folder__content {
+  display: none;
+  padding: calc(var(--gap) * 1.25);
+  background: var(--card-bg);
+}
+.folder.is-open .folder__content {
+  display: block;
+}
+.folder__content > .folder:not(:first-child) {
+  margin-top: var(--gap);
+}
+.grid {
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+.card {
+  background: var(--card-bg);
+  border-radius: var(--card-radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.7);
+}
+.thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--placeholder) center/cover no-repeat;
+  animation: pulse 1.5s infinite;
+  position: relative;
+}
+.thumb.loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+  background-size: 200% 100%;
+  animation: loadingAnim 1.5s infinite;
+}
+@keyframes pulse {
+  0%, 100% { background-color: #333; }
+  50% { background-color: #444; }
+}
+@keyframes loadingAnim {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.info {
+  padding: 0.75rem;
+  text-align: center;
+}
+.title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.back-btn {
+  background-color: var(--accent);
+  color: var(--bg);
+  padding: 0.75rem 1rem;
+  border-radius: var(--card-radius);
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: background-color 0.3s;
+}
+.back-btn:hover {
+  background-color: #9c66f0;
+}
+
+
+</style>
+</head>
+
+<body>
+  <div class="address-bar" id="folder-name"></div>
+  <div class="back-btn" onclick="goBack()">Exit this menu</div>
+  <br> <div id="container"></div>
+<script>
+
+// Extracts the origin (base URL) and pathname (the part after the domain)
+const { origin, pathname } = window.location;
+
+// Splits the path into segments
+const segs = pathname.split('/');
+
+// If the last segment doesn't have a file extension, add an empty string
+if (!segs.pop().includes('.')) segs.push('');
+
+// Joins segments back to form the base path
+const basePath = segs.join('/');
+
+// Sets the folder name in the webpage
+document.getElementById('folder-name').textContent = decodeURIComponent(basePath) || '/';
+
+// Function to navigate to the parent folder
+function goBack() {
+  const parent = basePath.split('/').slice(0, -1).join('/');
+  window.location.href = origin + (parent || '/');
+}
+
+// Initializes the Intersection Observer to handle lazy loading of images
+const io = new IntersectionObserver((entries, observer) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.backgroundImage = `url('${entry.target.dataset.src}')`;
+      entry.target.classList.remove('loading');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { rootMargin: '200px' });
+
+/**
+ * Renders a directory and its subdirectories only if they contain videos.
+ * Each folder is collapsible.
+ */
+function collectAndRender(directory, prefix, container) {
+  const relativePath = prefix + directory.name + '/';
+
+  // 1) Creates a placeholder for the folder
+  const folder = document.createElement('div');
+  folder.className = 'folder is-loading';
+
+  const header = document.createElement('div');
+  header.className = 'folder__header';
+  header.textContent = relativePath;
+
+  // Hides folder contents initially
+  const content = document.createElement('div');
+  content.className = 'folder__content';
+  content.style.display = 'none';
+
+  // Manual toggle for opening and closing folder contents
+  header.onclick = () => {
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+  };
+
+  folder.append(header, content);
+  container.appendChild(folder);
+
+  // 2) Fetches folder contents
+  return fetch(origin + directory.path + '/', { headers: { Accept: 'application/json' } })
+    .then(response => response.json())
+    .then(items => {
+      // 2a) Filters out videos
+      const videos = items.filter(item => item.type === 'video');
+      if (videos.length) {
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        videos.forEach(video => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.onclick = () => location.href = video.path;
+
+          const thumbnail = document.createElement('div');
+          thumbnail.className = 'thumb loading';
+          thumbnail.dataset.src = video.path.replace(/\/([^\/]+)$/, '/.thumbnails/$1.webp');
+          io.observe(thumbnail);
+
+          const info = document.createElement('div');
+          info.className = 'info';
+          const title = document.createElement('div');
+          title.className = 'title';
+          title.textContent = video.name.replace(/\.[^/.]+$/, '');
+          info.appendChild(title);
+
+          card.append(thumbnail, info);
+          grid.appendChild(card);
+        });
+        content.appendChild(grid);
+      }
+
+      // 2b) Processes subdirectories
+      const subdirectories = items
+        .filter(item => item.type === 'directory')
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      const subdirectoryPromises = subdirectories.map(subdir =>
+        collectAndRender(subdir, relativePath, content)
+      );
+
+      // 3) After rendering subdirectories, removes empty folders
+      return Promise.all(subdirectoryPromises).then(() => {
+        if (content.childElementCount === 0) {
+          folder.remove();
+        } else {
+          folder.classList.remove('is-loading');
+        }
+      });
+    })
+    .catch(() => {
+      folder.remove();
+    });
+}
+
+// Main function to render directories and videos
+async function renderAll() {
+  const container = document.getElementById('container');
+  const rootResponse = await fetch(origin + basePath + '/', { headers: { Accept: 'application/json' } });
+  const rootItems = await rootResponse.json();
+  const rootDirectories = rootItems
+    .filter(item => item.type === 'directory')
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Si hay vídeos en el directorio raíz, los muestra como "./"
+  const rootVideos = rootItems.filter(item => item.type === 'video');
+  if (rootVideos.length) {
+    collectAndRender({ name: '.', path: basePath }, '', container);
+  }
+
+  // Renderiza subdirectorios
+  rootDirectories.forEach(root => collectAndRender(root, '', container));
+}
+
+renderAll();
+
+</script>
+</body>
+</html>
+
