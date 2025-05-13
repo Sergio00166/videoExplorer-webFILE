@@ -1,4 +1,6 @@
 This is an plugin for the webFILE server.    
+**NOTE: Rename ```index.web.html``` to ```index.web``` when adding it to the server**    
+    
 It looks for the folders that has videos, and looks for an folder ```.thumbnails``` to load    
 the thumbnails for the video, also for the folder it will load the text inside a file    
 called ```description.txt``` and the poster when is a image callled ```poser.jpg```.    
