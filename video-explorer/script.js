@@ -33,10 +33,10 @@ const io = new IntersectionObserver((entries, obs)=>{
     }
     else if (t.classList.contains('folder__poster-bg')) {
       t.style.backgroundImage = `url('${t.dataset.src}')`;
-      t.classList.remove('loading');
       const img = t.parentNode.querySelector('.folder__poster-image');
       img.onload = () => {
         img.style.display = 'block';
+        t.classList.remove('loading'); // Remove loading class only after image is fully loaded
       };
       img.src = img.dataset.src;
       obs.unobserve(t);
@@ -47,7 +47,7 @@ const io = new IntersectionObserver((entries, obs)=>{
         t.style.display = 'block';
         const bg = t.parentNode.querySelector('.folder__poster-bg');
         bg.style.backgroundImage = `url('${bg.dataset.src}')`;
-        bg.classList.remove('loading');
+        bg.classList.remove('loading'); // Remove loading class only after image is fully loaded
       };
       t.src = t.dataset.src;
       obs.unobserve(t);

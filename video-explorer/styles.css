@@ -98,10 +98,12 @@ body {
     width: 100%;
     aspect-ratio: 16/9;
     background: var(--placeholder) center/cover no-repeat;
-    animation: pulse 1.5s infinite;
     position: relative;
     border-top-left-radius: var(--card-radius);
     border-top-right-radius: var(--card-radius);
+}
+.thumb {
+    animation: pulse 1.5s infinite;
 }
 .thumb.loading::before {
     content: "";
@@ -171,9 +173,11 @@ body {
     position: absolute;
     inset: 0;
     background: var(--placeholder) center/cover no-repeat;
-    animation: pulse 1.5s infinite;
     filter: blur(8px);
     transform: scale(1.1);
+}
+.folder__poster-bg.loading {
+    animation: pulse 1.5s infinite;
 }
 .folder__poster-bg.loading::before {
     content: "";
