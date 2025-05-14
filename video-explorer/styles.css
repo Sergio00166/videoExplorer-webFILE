@@ -102,7 +102,7 @@ body {
     border-top-left-radius: var(--card-radius);
     border-top-right-radius: var(--card-radius);
 }
-.thumb {
+.thumb.loading {
     animation: pulse 1.5s infinite;
 }
 .thumb.loading::before {
