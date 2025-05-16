@@ -39,6 +39,7 @@ body {
     margin-bottom: var(--gap);
     overflow: hidden;
     box-shadow: var(--shadow);
+    cursor: pointer;
 }
 .folder__header {
     padding: 0.75rem 1rem;
