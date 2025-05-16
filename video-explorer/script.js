@@ -1,214 +1,157 @@
-const { origin, pathname } = window.location;
-const segs = pathname.split('/');
-if (!segs.pop().includes('.')) segs.push('');
-const basePath = segs.join('/') + '/';
+/* Code by Sergio00166 */
 
-// Helper for correct URLs
-function fullUrl(path) {
-  return new URL(path, origin).href;
+
+const { origin, pathname } = window.location, segs = pathname.split("/");
+segs.pop().includes(".") || segs.push("");
+const basePath = segs.join("/") + "/";
+document.getElementById("folder-name").textContent = "Videos @ " + decodeURIComponent(basePath) || "/";
+
+
+function fullUrl(a) {
+    return new URL(a, origin).href
 }
-document.getElementById('folder-name').textContent =
-  "Videos @ " + decodeURIComponent(basePath) || '/';
-
-function toggleContent(el) {
-  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+function fullUrlWithCache(a) {
+    const b = fullUrl(a);
+    return b + "?cache"
+}
+function toggleContent(a) {
+    a.style.display = "none" === a.style.display ? "block" : "none"
 }
 function goBack() {
-  const p = basePath.split('/').slice(0, -2).join('/') + '/';
-  window.location.href = fullUrl(p);
+    const a = basePath.split("/").slice(0, -2).join("/") + "/";
+    window.location.href = fullUrl(a)
 }
-
-// Cache for thumbnails (caches promises)
-const thumbnailsCache = {};
-
-// IntersectionObserver for images and posters
-const io = new IntersectionObserver(onIntersection, { rootMargin: '200px' });
-function onIntersection(entries, obs) {
-  entries.forEach(e => {
-    if (!e.isIntersecting) return;
-    const t = e.target;
-
-    if (t.classList.contains('thumb')) {
-      const folder = t.dataset.folder;
-      if (!thumbnailsCache[folder]) {
-        thumbnailsCache[folder] = fetch(fullUrl(folder), {
-          headers: { Accept: 'application/json' }
-        })
-          .then(r => r.json())
-          .catch(() => []);
-      }
-      thumbnailsCache[folder].then(files => {
-        const match = files.find(i => i.name.startsWith(t.dataset.video));
-        if (match) {
-          t.src = fullUrl(match.path);
-          t.onload = () => t.classList.remove('loading');
-        }
-      });
-      obs.unobserve(t);
-    } else if (t.classList.contains('folder__poster-bg')) {
-      t.style.backgroundImage = `url('${t.dataset.src}')`;
-      const img = t.parentNode.querySelector('.folder__poster-image');
-      img.onload = () => {
-        img.style.display = 'block';
-        t.classList.remove('loading');
-      };
-      img.src = img.dataset.src;
-      obs.unobserve(t);
-    } else if (t.classList.contains('folder__poster-image')) {
-      t.onload = () => {
-        t.style.display = 'block';
-        const bg = t.parentNode.querySelector('.folder__poster-bg');
-        bg.style.backgroundImage = `url('${bg.dataset.src}')`;
-        bg.classList.remove('loading');
-      };
-      t.src = t.dataset.src;
-      obs.unobserve(t);
-    }
-  });
-}
-
-async function collectAndRender(dir, prefix, container) {
-  const frag = document.createDocumentFragment();
-  const folder = document.createElement('div');
-  folder.className = 'folder is-loading';
-
-  const hdr = document.createElement('div');
-  hdr.className = 'folder__header';
-  hdr.textContent = dir.name;
-  folder.append(hdr);
-
-  const cont = document.createElement('div');
-  cont.className = 'folder__content';
-  cont.style.display = 'none';
-  folder.append(cont);
-
-  folder.addEventListener('click', e => {
-    if (!e.target.closest('.card')) toggleContent(cont);
-    e.stopPropagation();
-  });
-
-  let items;
-  try {
-    items = await fetch(fullUrl(dir.path), {
-      headers: { Accept: 'application/json' }
-    }).then(r => r.json());
-  } catch { return; }
-
-  // Render photos and description
-  const photos = items.filter(i => i.type === 'photo');
-  const descF = items.find(i => i.type === 'text' && i.name === 'description.txt');
-  if (photos.length || descF) {
-    const dw = document.createElement('div');
-    dw.className = 'folder__description';
-    const di = document.createElement('div');
-    di.className = 'folder__desc-inner';
-    if (photos.length) {
-      const pc = document.createElement('div');
-      pc.className = 'folder__poster-container';
-      const bg = document.createElement('div');
-      bg.className = 'folder__poster-bg loading';
-      bg.dataset.src = fullUrl(photos[0].path);
-      pc.append(bg);
-      io.observe(bg);
-      const img = document.createElement('img');
-      img.className = 'folder__poster-image';
-      img.dataset.src = fullUrl(photos[0].path);
-      img.alt = 'Poster';
-      img.style.display = 'none';
-      pc.append(img);
-      io.observe(img);
-      di.append(pc);
-    }
-    if (descF) {
-      const dt = document.createElement('div');
-      dt.className = 'desc-text';
-      fetch(fullUrl(descF.path))
-        .then(r => r.text())
-        .then(t => (dt.textContent = t));
-      di.append(dt);
-    }
-    dw.append(di);
-    folder.insertBefore(dw, cont);
-  }
-
-  // Videos
-  const vids = items.filter(i => i.type === 'video');
-  if (vids.length) {
-    const grid = document.createElement('div');
-    grid.className = 'grid';
-    vids.forEach(v => {
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.onclick = e => {
-        e.stopPropagation();
-        window.open(fullUrl(v.path), '_blank');
-      };
-      const th = document.createElement('img');
-      th.className = 'thumb loading';
-      th.dataset.video = v.name;
-      th.dataset.folder = dir.path + '.thumbnails/';
-      th.alt = v.name;
-      io.observe(th);
-      const info = document.createElement('div');
-      info.className = 'info';
-      const title = document.createElement('div');
-      title.className = 'title';
-      title.textContent = v.name.replace(/\.[^/.]+$/, '');
-      info.append(title);
-      card.append(th, info);
-      grid.append(card);
+const thumbnailsCache = {},
+    io = new IntersectionObserver(onIntersection, {
+        rootMargin: "200px"
     });
-    cont.append(grid);
-  }
 
-  // Subdirectories - load them when the folder content container becomes visible
-  const subs = items.filter(i => i.type === 'directory' && i.name !== '.thumbnails');
-  if (subs.length) {
-    let subfoldersLoaded = false;
-    const loadSubfolders = async () => {
-      if (subfoldersLoaded) return;
-      subfoldersLoaded = true;
-      const subContainer = document.createElement('div');
-      subContainer.className = 'subfolders';
-      for (const s of subs) {
-        await collectAndRender(
-          { name: s.name, path: dir.path + s.name + '/' },
-          '', subContainer
-        );
-      } cont.appendChild(subContainer);
-    };
+function onIntersection(a, b) {
+    a.forEach(a => {
+        if (!a.isIntersecting) return;
+        const c = a.target;
+        if (c.classList.contains("thumb")) {
+            const a = c.dataset.folder;
+            thumbnailsCache[a] || (thumbnailsCache[a] = fetch(fullUrl(a), {
+                headers: {
+                    Accept: "application/json"
+                }
+            }).then(a => a.json()).catch(() => [])), thumbnailsCache[a].then(a => {
+                const b = a.find(a => a.name.startsWith(c.dataset.video));
+                b && (c.src = fullUrlWithCache(b.path), c.onload = () => c.classList.remove("loading"))
+            }), b.unobserve(c)
+        } else if (c.classList.contains("folder__poster-bg")) {
+            c.style.backgroundImage = `url('${c.dataset.src}')`;
+            const a = c.parentNode.querySelector(".folder__poster-image");
+            a.onload = () => {
+                a.style.display = "block", c.classList.remove("loading")
+            }, a.src = a.dataset.src, b.unobserve(c)
+        } else c.classList.contains("folder__poster-image") && (c.onload = () => {
+            c.style.display = "block";
+            const a = c.parentNode.querySelector(".folder__poster-bg");
+            a.style.backgroundImage = `url('${a.dataset.src}')`, a.classList.remove("loading")
+        }, c.src = c.dataset.src, b.unobserve(c))
+    })
+}
 
-    const subObserver = new IntersectionObserver((entries, observer) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          loadSubfolders();
-          observer.disconnect();
+async function collectAndRender(a, b, c) {
+    const d = document.createDocumentFragment(),
+        e = document.createElement("div");
+    e.className = "folder is-loading";
+    const f = document.createElement("div");
+    f.className = "folder__header", f.textContent = a.name, e.append(f);
+    const g = document.createElement("div");
+    g.className = "folder__content", g.style.display = "none", e.append(g), e.addEventListener("click", a => {
+        a.target.closest(".card") || toggleContent(g), a.stopPropagation()
+    });
+    let h;
+    try {
+        h = await fetch(fullUrl(a.path), {
+            headers: {
+                Accept: "application/json"
+            }
+        }).then(a => a.json())
+    } catch {
+        return
+    }
+    const i = h.filter(a => "photo" === a.type),
+        j = h.find(a => "text" === a.type && "description.txt" === a.name);
+    if (i.length || j) {
+        const a = document.createElement("div");
+        a.className = "folder__description";
+        const b = document.createElement("div");
+        if (b.className = "folder__desc-inner", i.length) {
+            const a = document.createElement("div");
+            a.className = "folder__poster-container";
+            const c = document.createElement("div");
+            c.className = "folder__poster-bg loading", c.dataset.src = fullUrlWithCache(i[0].path), a.append(c), io.observe(c);
+            const d = document.createElement("img");
+            d.className = "folder__poster-image", d.dataset.src = fullUrlWithCache(i[0].path), d.alt = "Poster", d.style.display = "none", a.append(d), io.observe(d), b.append(a)
         }
-    });}, { rootMargin: '200px' });
-    subObserver.observe(cont);
-  }
-
-  folder.classList.remove('is-loading');
-  frag.append(folder);
-  container.append(frag);
+        if (j) {
+            const a = document.createElement("div");
+            a.className = "desc-text", fetch(fullUrlWithCache(j.path)).then(a => a.text()).then(b => a.textContent = b), b.append(a)
+        }
+        a.append(b), e.insertBefore(a, g)
+    }
+    const k = h.filter(a => "video" === a.type);
+    if (k.length) {
+        const b = document.createElement("div");
+        b.className = "grid", k.forEach(c => {
+            const d = document.createElement("div");
+            d.className = "card", d.onclick = a => {
+                a.stopPropagation(), window.open(fullUrl(c.path), "_blank")
+            };
+            const e = document.createElement("img");
+            e.className = "thumb loading", e.dataset.video = c.name, e.dataset.folder = a.path + ".thumbnails/", e.alt = c.name, io.observe(e);
+            const f = document.createElement("div");
+            f.className = "info";
+            const g = document.createElement("div");
+            g.className = "title", g.textContent = c.name.replace(/\.[^/.]+$/, ""), f.append(g), d.append(e, f), b.append(d)
+        }), g.append(b)
+    }
+    const l = h.filter(a => "directory" === a.type && ".thumbnails" !== a.name);
+    if (l.length) {
+        let b = !1;
+        const c = async () => {
+            if (!b) {
+                b = !0;
+                const c = document.createElement("div");
+                c.className = "subfolders";
+                for (const b of l) await collectAndRender({
+                    name: b.name,
+                    path: a.path + b.name + "/"
+                }, "", c);
+                g.appendChild(c)
+            }
+        }, d = new IntersectionObserver((a, b) => {
+            a.forEach(a => {
+                a.isIntersecting && (c(), b.disconnect())
+            })
+        }, {
+            rootMargin: "200px"
+        });
+        d.observe(g)
+    }
+    e.classList.remove("is-loading"), d.append(e), c.append(d)
 }
 
 async function renderAll() {
-  const ctr = document.getElementById('container');
-  const all = await fetch(fullUrl(basePath), {
-    headers: { Accept: 'application/json' }
-  }).then(r => r.json());
-
-  const rootV = all.filter(i => i.type === 'video');
-  if (rootV.length)
-    await collectAndRender({ name: '.', path: basePath }, '', ctr);
-
-  const dirs = all
-    .filter(i => i.type === 'directory' && i.name !== '.thumbnails')
-    .sort((a, b) => a.name.localeCompare(b.name));
-  for (const d of dirs) {
-    await collectAndRender({ name: d.name, path: basePath + d.name + '/' }, '', ctr);
-  }
+    const a = document.getElementById("container"),
+        b = await fetch(fullUrl(basePath), {
+            headers: {
+                Accept: "application/json"
+            }
+        }).then(a => a.json()),
+        c = b.filter(a => "video" === a.type);
+    c.length && (await collectAndRender({
+        name: ".",
+        path: basePath
+    }, "", a));
+    const e = b.filter(a => "directory" === a.type && ".thumbnails" !== a.name).sort((c, a) => c.name.localeCompare(a.name));
+    for (const b of e) await collectAndRender({
+        name: b.name,
+        path: basePath + b.name + "/"
+    }, "", a)
 }
-
 renderAll();
