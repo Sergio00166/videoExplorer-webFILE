@@ -1,26 +1,22 @@
 /* Code by Sergio00166 */
 
-
 const { origin, pathname } = window.location, segs = pathname.split("/");
 segs.pop().includes(".") || segs.push("");
 const basePath = segs.join("/") + "/";
 document.getElementById("folder-name").textContent = "Videos @ " + decodeURIComponent(basePath) || "/";
 
 
-function fullUrl(a) {
-    return new URL(a, origin).href
-}
 function fullUrlWithCache(a) {
-    const b = fullUrl(a);
-    return b + "?cache"
+    return a + "?cache"
 }
 function toggleContent(a) {
     a.style.display = "none" === a.style.display ? "block" : "none"
 }
 function goBack() {
     const a = basePath.split("/").slice(0, -2).join("/") + "/";
-    window.location.href = fullUrl(a)
+    window.location.href = a
 }
+
 const thumbnailsCache = {},
     io = new IntersectionObserver(onIntersection, {
         rootMargin: "200px"
@@ -31,26 +27,35 @@ function onIntersection(a, b) {
         if (!a.isIntersecting) return;
         const c = a.target;
         if (c.classList.contains("thumb")) {
-            const a = c.dataset.folder;
-            thumbnailsCache[a] || (thumbnailsCache[a] = fetch(fullUrl(a), {
+            const folder = c.closest('.grid').dataset.folder;
+            thumbnailsCache[folder] ||= fetch(folder, {
                 headers: {
                     Accept: "application/json"
                 }
-            }).then(a => a.json()).catch(() => [])), thumbnailsCache[a].then(a => {
-                const b = a.find(a => a.name.startsWith(c.dataset.video));
-                b && (c.src = fullUrlWithCache(b.path), c.onload = () => c.classList.remove("loading"))
-            }), b.unobserve(c)
+            }).then(res => res.json()).catch(() => []);
+            thumbnailsCache[folder].then(list => {
+                const item = list.find(x => x.name.startsWith(c.dataset.video));
+                if (item) {
+                    c.src = fullUrlWithCache(item.path);
+                    c.onload = () => c.classList.remove("loading");
+                }
+            });
+            b.unobserve(c);
         } else if (c.classList.contains("folder__poster-bg")) {
             c.style.backgroundImage = `url('${c.dataset.src}')`;
             const a = c.parentNode.querySelector(".folder__poster-image");
             a.onload = () => {
                 a.style.display = "block", c.classList.remove("loading")
             }, a.src = a.dataset.src, b.unobserve(c)
-        } else c.classList.contains("folder__poster-image") && (c.onload = () => {
-            c.style.display = "block";
-            const a = c.parentNode.querySelector(".folder__poster-bg");
-            a.style.backgroundImage = `url('${a.dataset.src}')`, a.classList.remove("loading")
-        }, c.src = c.dataset.src, b.unobserve(c))
+        } else if (c.classList.contains("folder__poster-image")) {
+            c.onload = () => {
+                c.style.display = "block";
+                const a = c.parentNode.querySelector(".folder__poster-bg");
+                a.style.backgroundImage = `url('${a.dataset.src}')`, a.classList.remove("loading")
+            };
+            c.src = c.dataset.src;
+            b.unobserve(c);
+        }
     })
 }
 
@@ -66,7 +71,7 @@ async function collectAndRender(a, b, c) {
     });
     let h;
     try {
-        h = await fetch(fullUrl(a.path), {
+        h = await fetch(a.path, {
             headers: {
                 Accept: "application/json"
             }
@@ -80,7 +85,8 @@ async function collectAndRender(a, b, c) {
         const a = document.createElement("div");
         a.className = "folder__description";
         const b = document.createElement("div");
-        if (b.className = "folder__desc-inner", i.length) {
+        b.className = "folder__desc-inner";
+        if (i.length) {
             const a = document.createElement("div");
             a.className = "folder__poster-container";
             const c = document.createElement("div");
@@ -97,18 +103,24 @@ async function collectAndRender(a, b, c) {
     const k = h.filter(a => "video" === a.type);
     if (k.length) {
         const b = document.createElement("div");
-        b.className = "grid", k.forEach(c => {
+        b.className = "grid";
+        b.dataset.folder = a.path + ".thumbnails/";
+        k.forEach(c => {
             const d = document.createElement("div");
             d.className = "card", d.onclick = a => {
-                a.stopPropagation(), window.open(fullUrl(c.path), "_blank")
+                a.stopPropagation(), window.open(c.path, "_blank")
             };
             const e = document.createElement("img");
-            e.className = "thumb loading", e.dataset.video = c.name, e.dataset.folder = a.path + ".thumbnails/", e.alt = c.name, io.observe(e);
+            e.className = "thumb loading";
+            e.dataset.video = c.name;
+            e.alt = c.name;
+            io.observe(e);
             const f = document.createElement("div");
             f.className = "info";
             const g = document.createElement("div");
             g.className = "title", g.textContent = c.name.replace(/\.[^/.]+$/, ""), f.append(g), d.append(e, f), b.append(d)
-        }), g.append(b)
+        });
+        g.append(b);
     }
     const l = h.filter(a => "directory" === a.type && ".thumbnails" !== a.name);
     if (l.length) {
@@ -138,7 +150,7 @@ async function collectAndRender(a, b, c) {
 
 async function renderAll() {
     const a = document.getElementById("container"),
-        b = await fetch(fullUrl(basePath), {
+        b = await fetch(basePath, {
             headers: {
                 Accept: "application/json"
             }
